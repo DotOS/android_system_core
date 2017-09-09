@@ -292,6 +292,29 @@ bool BatteryMonitor::update(void) {
                                 continue;
                             }
 
+    for (i = 0; i < mChargerNames.size(); i++) {
+        String8 path;
+        path.appendFormat("%s/%s/online", POWER_SUPPLY_SYSFS_PATH,
+                          mChargerNames[i].string());
+        if (getIntField(path)) {
+            path.clear();
+            path.appendFormat("%s/%s/type", POWER_SUPPLY_SYSFS_PATH,
+                              mChargerNames[i].string());
+            switch(readPowerSupplyType(path)) {
+            case ANDROID_POWER_SUPPLY_TYPE_AC:
+                props.chargerAcOnline = true;
+                break;
+            case ANDROID_POWER_SUPPLY_TYPE_USB:
+                props.chargerUsbOnline = true;
+                break;
+            case ANDROID_POWER_SUPPLY_TYPE_WIRELESS:
+                props.chargerWirelessOnline = true;
+                break;
+            default:
+                KLOG_WARNING(LOG_TAG, "%s: Unknown power supply type\n",
+                             mChargerNames[i].string());
+            }
+
             int ChargingCurrent =
                   (access(SYSFS_BATTERY_CURRENT, R_OK) == 0) ? abs(getIntField(String8(SYSFS_BATTERY_CURRENT))) : 0;
 
@@ -299,24 +322,15 @@ bool BatteryMonitor::update(void) {
                   (access(SYSFS_BATTERY_VOLTAGE, R_OK) == 0) ? getIntField(String8(SYSFS_BATTERY_VOLTAGE)) :
                    DEFAULT_VBUS_VOLTAGE;
 
-                            double power = ((double)ChargingCurrent / MILLION) * ((double)ChargingVoltage / MILLION);
-                            if (MaxPower < power) {
-                                props.maxChargingCurrent = ChargingCurrent;
-                                props.maxChargingVoltage = ChargingVoltage;
-                                MaxPower = power;
-                            }
-                        }
-                    }
-                }
-                break;
-            case ANDROID_POWER_SUPPLY_TYPE_BATTERY:
-                break;
-            default:
-                break;
-            } //switch
-        } //while
-        closedir(dir);
-    }//else
+            double power = ((double)ChargingCurrent / MILLION) *
+                           ((double)ChargingVoltage / MILLION);
+            if (MaxPower < power) {
+                props.maxChargingCurrent = ChargingCurrent;
+                props.maxChargingVoltage = ChargingVoltage;
+                MaxPower = power;
+            }
+        }
+    }
 
     logthis = !healthd_board_battery_update(&props);
 
